@@ -2,7 +2,7 @@ import { useBanner } from '@/context/BannerContext';
 import { getServicesForCategory } from '@/types/banner';
 import type { UCService, BannerTheme, UCLabels } from '@/types/banner';
 import type { BannerAction } from '@/context/BannerContext';
-import { Shield, ChevronLeft, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { ChevronDown, ChevronUp, ExternalLink, X } from 'lucide-react';
 import { useState } from 'react';
 
 export function BannerSecondLayer() {
@@ -20,98 +20,122 @@ export function BannerSecondLayer() {
     fontSize: `${theme.fontSize}px`,
     borderRadius: `${layout.borderRadius}px`,
     maxWidth: `${layout.maxWidth}px`,
-    border: `1px solid ${theme.borderColor}`,
-    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+    boxShadow: '0 4px 32px rgba(0, 0, 0, 0.18)',
   };
 
+  const tabStyle = (isActive: boolean): React.CSSProperties => ({
+    color: isActive ? theme.primaryColor : theme.textColor,
+    borderBottom: isActive ? `2px solid ${theme.primaryColor}` : '2px solid transparent',
+    opacity: isActive ? 1 : 0.55,
+    fontWeight: isActive ? 600 : 400,
+    fontSize: `${theme.fontSize}px`,
+    paddingBottom: '10px',
+  });
+
   return (
-    <div style={containerStyle} className="w-full overflow-hidden">
+    <div style={containerStyle} className="w-full overflow-hidden flex flex-col" role="dialog" aria-label="Privacy Settings">
       {/* Header */}
-      <div className="p-6 pb-3">
-        <div className="flex items-center gap-3 mb-3">
-          <button
-            onClick={() => dispatch({ type: 'SET_PREVIEW_MODE', payload: 'first-layer' })}
-            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors cursor-pointer"
-            style={{ backgroundColor: theme.secondaryColor }}
-          >
-            <ChevronLeft size={16} style={{ color: theme.secondaryTextColor }} />
-          </button>
-          {layout.showLogo && (
-            <div
-              className="flex items-center justify-center w-10 h-10 rounded-lg"
-              style={{ backgroundColor: theme.primaryColor }}
-            >
-              <Shield size={20} style={{ color: theme.primaryTextColor }} />
-            </div>
-          )}
-          <h2 className="text-lg font-semibold" style={{ color: theme.textColor }}>
+      <div className="px-6 pt-5 pb-0">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold" style={{ color: theme.textColor, fontSize: `${theme.fontSize + 4}px` }}>
             {labels.secondLayerTitle}
           </h2>
+          {layout.showCloseButton && (
+            <button
+              onClick={() => dispatch({ type: 'SET_PREVIEW_MODE', payload: 'first-layer' })}
+              className="p-1 rounded-md transition-colors cursor-pointer hover:opacity-70"
+              style={{ color: theme.textColor }}
+            >
+              <X size={18} />
+            </button>
+          )}
         </div>
-        <p className="text-sm leading-relaxed opacity-70" style={{ color: theme.textColor }}>
+        <p
+          className="leading-relaxed mb-4"
+          style={{ color: theme.textColor, opacity: 0.65, fontSize: `${theme.fontSize - 1}px`, lineHeight: '1.6' }}
+        >
           {labels.secondLayerDescription}
         </p>
+
+        {/* Tabs — underline style like UC V3 */}
+        <div className="flex gap-6" style={{ borderBottom: `1px solid ${theme.borderColor}` }}>
+          <button onClick={() => setActiveTab('categories')} className="cursor-pointer pb-0" style={tabStyle(activeTab === 'categories')}>
+            {settings.secondLayer.tabsCategoriesLabel}
+          </button>
+          <button onClick={() => setActiveTab('services')} className="cursor-pointer pb-0" style={tabStyle(activeTab === 'services')}>
+            {settings.secondLayer.tabsServicesLabel}
+          </button>
+        </div>
       </div>
 
-      {/* Category / Services tabs */}
-      <div className="px-6 flex gap-1 mb-3">
-        <button
-          onClick={() => setActiveTab('categories')}
-          className="px-3 py-1.5 text-xs rounded-md transition-colors cursor-pointer"
-          style={{
-            backgroundColor: activeTab === 'categories' ? theme.primaryColor : theme.secondaryColor,
-            color: activeTab === 'categories' ? theme.primaryTextColor : theme.secondaryTextColor,
-          }}
-        >
-          {settings.secondLayer.tabsCategoriesLabel}
-        </button>
-        <button
-          onClick={() => setActiveTab('services')}
-          className="px-3 py-1.5 text-xs rounded-md transition-colors cursor-pointer"
-          style={{
-            backgroundColor: activeTab === 'services' ? theme.primaryColor : theme.secondaryColor,
-            color: activeTab === 'services' ? theme.primaryTextColor : theme.secondaryTextColor,
-          }}
-        >
-          {settings.secondLayer.tabsServicesLabel}
-        </button>
-      </div>
-
-      {/* Content */}
-      <div className="px-6 max-h-[320px] overflow-y-auto">
+      {/* Content — scrollable */}
+      <div className="px-6 py-4 flex-1 overflow-y-auto max-h-[380px]">
         {activeTab === 'categories'
           ? categories.map((category) => {
               const catServices = getServicesForCategory(category, services);
               const isExpanded = expandedCategory === category.categorySlug;
+              const allConsented = catServices.every((s) => s.consent.status);
+              const isEssentialCategory = category.categorySlug === 'essential';
               return (
                 <div
                   key={category.categorySlug}
-                  className="mb-3 rounded-lg overflow-hidden"
-                  style={{ border: `1px solid ${theme.borderColor}`, backgroundColor: theme.secondaryColor }}
+                  className="mb-2 overflow-hidden"
+                  style={{
+                    borderRadius: `${Math.min(layout.borderRadius, 8)}px`,
+                    border: `1px solid ${theme.borderColor}`,
+                  }}
                 >
-                  <button
-                    onClick={() => setExpandedCategory(isExpanded ? null : category.categorySlug)}
-                    className="w-full flex items-center justify-between p-4 cursor-pointer"
+                  {/* Category header row */}
+                  <div
+                    className="flex items-center justify-between px-4 py-3.5"
+                    style={{ backgroundColor: theme.secondaryColor }}
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium" style={{ color: theme.secondaryTextColor }}>
+                    <button
+                      onClick={() => setExpandedCategory(isExpanded ? null : category.categorySlug)}
+                      className="flex-1 flex items-center gap-2 cursor-pointer text-left"
+                    >
+                      {isExpanded
+                        ? <ChevronUp size={16} style={{ color: theme.textColor, opacity: 0.4 }} />
+                        : <ChevronDown size={16} style={{ color: theme.textColor, opacity: 0.4 }} />}
+                      <span className="font-medium" style={{ color: theme.textColor, fontSize: `${theme.fontSize}px` }}>
                         {category.label}
                       </span>
-                      <span className="text-xs opacity-50" style={{ color: theme.secondaryTextColor }}>
-                        {catServices.length} service{catServices.length !== 1 ? 's' : ''}
+                      <span style={{ color: theme.textColor, opacity: 0.4, fontSize: `${theme.fontSize - 2}px` }}>
+                        ({catServices.length})
                       </span>
-                    </div>
-                    {isExpanded
-                      ? <ChevronUp size={14} style={{ color: theme.secondaryTextColor, opacity: 0.5 }} />
-                      : <ChevronDown size={14} style={{ color: theme.secondaryTextColor, opacity: 0.5 }} />}
-                  </button>
+                    </button>
+                    {/* Category-level toggle */}
+                    <ToggleSwitch
+                      checked={allConsented}
+                      disabled={isEssentialCategory}
+                      theme={theme}
+                      onChange={() => {
+                        catServices.forEach((s) => {
+                          if (!s.isEssential && s.consent.status !== !allConsented) {
+                            dispatch({ type: 'TOGGLE_SERVICE_CONSENT', payload: s.templateId });
+                          }
+                        });
+                      }}
+                    />
+                  </div>
+
+                  {/* Expanded services */}
                   {isExpanded && (
-                    <div className="px-4 pb-4" style={{ borderTop: `1px solid ${theme.borderColor}` }}>
-                      <p className="text-xs opacity-60 mt-3 mb-3" style={{ color: theme.secondaryTextColor }}>
-                        {category.description}
-                      </p>
-                      {catServices.map((service) => (
-                        <ServiceRow key={service.templateId} service={service} theme={theme} labels={labels} dispatch={dispatch} />
+                    <div style={{ borderTop: `1px solid ${theme.borderColor}` }}>
+                      <div className="px-4 py-3">
+                        <p style={{ color: theme.textColor, opacity: 0.55, fontSize: `${theme.fontSize - 1}px`, lineHeight: '1.5' }}>
+                          {category.description}
+                        </p>
+                      </div>
+                      {catServices.map((service, i) => (
+                        <ServiceRow
+                          key={service.templateId}
+                          service={service}
+                          theme={theme}
+                          labels={labels}
+                          dispatch={dispatch}
+                          isLast={i === catServices.length - 1}
+                        />
                       ))}
                     </div>
                   )}
@@ -123,49 +147,84 @@ export function BannerSecondLayer() {
               return (
                 <div
                   key={service.templateId}
-                  className="mb-3 rounded-lg overflow-hidden"
-                  style={{ border: `1px solid ${theme.borderColor}`, backgroundColor: theme.secondaryColor }}
+                  className="mb-2 overflow-hidden"
+                  style={{
+                    borderRadius: `${Math.min(layout.borderRadius, 8)}px`,
+                    border: `1px solid ${theme.borderColor}`,
+                  }}
                 >
-                  <div className="flex items-center justify-between p-4">
+                  <div
+                    className="flex items-center justify-between px-4 py-3.5"
+                    style={{ backgroundColor: theme.secondaryColor }}
+                  >
                     <button
                       onClick={() => setExpandedService(isExpanded ? null : service.templateId)}
-                      className="flex-1 flex items-center gap-3 cursor-pointer text-left"
+                      className="flex-1 flex items-center gap-2 cursor-pointer text-left"
                     >
-                      <span className="text-sm font-medium" style={{ color: theme.secondaryTextColor }}>
+                      {isExpanded
+                        ? <ChevronUp size={16} style={{ color: theme.textColor, opacity: 0.4 }} />
+                        : <ChevronDown size={16} style={{ color: theme.textColor, opacity: 0.4 }} />}
+                      <span className="font-medium" style={{ color: theme.textColor, fontSize: `${theme.fontSize}px` }}>
                         {service.dataProcessor}
                       </span>
-                      {isExpanded
-                        ? <ChevronUp size={14} style={{ color: theme.secondaryTextColor, opacity: 0.5 }} />
-                        : <ChevronDown size={14} style={{ color: theme.secondaryTextColor, opacity: 0.5 }} />}
                     </button>
-                    <ToggleButton service={service} theme={theme} dispatch={dispatch} />
+                    <ToggleSwitch
+                      checked={service.consent.status}
+                      disabled={service.isEssential}
+                      theme={theme}
+                      onChange={() => dispatch({ type: 'TOGGLE_SERVICE_CONSENT', payload: service.templateId })}
+                    />
                   </div>
-                  {isExpanded && <ServiceDetail service={service} theme={theme} labels={labels} />}
+                  {isExpanded && (
+                    <div style={{ borderTop: `1px solid ${theme.borderColor}` }}>
+                      <ServiceDetail service={service} theme={theme} labels={labels} />
+                    </div>
+                  )}
                 </div>
               );
             })}
       </div>
 
-      {/* Actions */}
-      <div className="p-6 pt-3 flex gap-2">
+      {/* Bottom action bar */}
+      <div
+        className="px-6 py-4 flex gap-2"
+        style={{ borderTop: `1px solid ${theme.borderColor}` }}
+      >
         <button
           onClick={() => dispatch({ type: 'ACCEPT_ALL' })}
-          className="flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-opacity hover:opacity-90 cursor-pointer"
-          style={{ backgroundColor: theme.primaryColor, color: theme.primaryTextColor }}
+          className="flex-1 py-2.5 px-3 font-semibold transition-opacity hover:opacity-90 cursor-pointer"
+          style={{
+            backgroundColor: theme.primaryColor,
+            color: theme.primaryTextColor,
+            borderRadius: `${Math.min(layout.borderRadius, 6)}px`,
+            fontSize: `${theme.fontSize - 1}px`,
+          }}
         >
           {settings.secondLayer.acceptButtonText}
         </button>
         <button
           onClick={() => dispatch({ type: 'DENY_ALL' })}
-          className="flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-opacity hover:opacity-80 cursor-pointer"
-          style={{ backgroundColor: theme.secondaryColor, color: theme.secondaryTextColor }}
+          className="flex-1 py-2.5 px-3 font-semibold transition-opacity hover:opacity-80 cursor-pointer"
+          style={{
+            backgroundColor: 'transparent',
+            color: theme.textColor,
+            border: `1.5px solid ${theme.borderColor}`,
+            borderRadius: `${Math.min(layout.borderRadius, 6)}px`,
+            fontSize: `${theme.fontSize - 1}px`,
+          }}
         >
           {settings.secondLayer.denyButtonText}
         </button>
         <button
           onClick={() => dispatch({ type: 'SET_PREVIEW_MODE', payload: 'first-layer' })}
-          className="flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-opacity hover:opacity-80 cursor-pointer"
-          style={{ backgroundColor: 'transparent', color: theme.primaryColor, border: `1px solid ${theme.primaryColor}` }}
+          className="flex-1 py-2.5 px-3 font-semibold transition-opacity hover:opacity-80 cursor-pointer"
+          style={{
+            backgroundColor: theme.primaryColor,
+            color: theme.primaryTextColor,
+            opacity: 0.85,
+            borderRadius: `${Math.min(layout.borderRadius, 6)}px`,
+            fontSize: `${theme.fontSize - 1}px`,
+          }}
         >
           {labels.btnSave}
         </button>
@@ -173,65 +232,135 @@ export function BannerSecondLayer() {
 
       {/* Footer */}
       <div
-        className="px-6 py-3 flex items-center justify-center gap-4 text-xs"
-        style={{ borderTop: `1px solid ${theme.borderColor}` }}
+        className="px-6 py-3 flex items-center justify-between"
+        style={{ borderTop: `1px solid ${theme.borderColor}`, backgroundColor: theme.secondaryColor }}
       >
-        <a href={settings.privacyPolicyUrl} className="hover:underline opacity-60" style={{ color: theme.textColor }} onClick={(e) => e.preventDefault()}>
-          {labels.privacyPolicyLinkText}
-        </a>
-        <span className="opacity-30">|</span>
-        <a href={settings.imprintUrl} className="hover:underline opacity-60" style={{ color: theme.textColor }} onClick={(e) => e.preventDefault()}>
-          {labels.imprintLinkText}
-        </a>
-        <span className="opacity-30">|</span>
-        <span className="opacity-40">Powered by Usercentrics</span>
+        <div className="flex items-center gap-3" style={{ fontSize: `${theme.fontSize - 2}px` }}>
+          <a
+            href={settings.privacyPolicyUrl}
+            className="hover:underline"
+            style={{ color: theme.textColor, opacity: 0.6 }}
+            onClick={(e) => e.preventDefault()}
+          >
+            {labels.privacyPolicyLinkText}
+          </a>
+          <span style={{ color: theme.textColor, opacity: 0.25 }}>|</span>
+          <a
+            href={settings.imprintUrl}
+            className="hover:underline"
+            style={{ color: theme.textColor, opacity: 0.6 }}
+            onClick={(e) => e.preventDefault()}
+          >
+            {labels.imprintLinkText}
+          </a>
+        </div>
+        <div className="flex items-center gap-1.5" style={{ fontSize: `${theme.fontSize - 3}px`, color: theme.textColor, opacity: 0.35 }}>
+          <svg width="14" height="14" viewBox="0 0 100 100" fill="currentColor">
+            <path d="M50 5C25.2 5 5 25.2 5 50s20.2 45 45 45 45-20.2 45-45S74.8 5 50 5zm0 82c-20.4 0-37-16.6-37-37s16.6-37 37-37 37 16.6 37 37-16.6 37-37 37z" />
+            <path d="M50 20c-16.6 0-30 13.4-30 30s13.4 30 30 30 30-13.4 30-30-13.4-30-30-30zm0 52c-12.2 0-22-9.8-22-22s9.8-22 22-22 22 9.8 22 22-9.8 22-22 22z" />
+            <circle cx="50" cy="50" r="12" />
+          </svg>
+          <span>Powered by Usercentrics</span>
+        </div>
       </div>
     </div>
   );
 }
 
-function ServiceRow({ service, theme, labels, dispatch }: {
-  service: UCService; theme: BannerTheme; labels: UCLabels; dispatch: React.Dispatch<BannerAction>;
+/* ------------------------------------------------------------------ */
+/* Toggle Switch — styled like UC V3 (rounded pill with circle knob)  */
+/* ------------------------------------------------------------------ */
+
+function ToggleSwitch({ checked, disabled, theme, onChange }: {
+  checked: boolean;
+  disabled: boolean;
+  theme: BannerTheme;
+  onChange: () => void;
+}) {
+  return (
+    <button
+      onClick={onChange}
+      disabled={disabled}
+      className="relative inline-flex items-center shrink-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      style={{
+        width: '44px',
+        height: '24px',
+        borderRadius: '12px',
+        backgroundColor: checked ? theme.toggleActiveColor : theme.toggleInactiveColor,
+      }}
+      role="switch"
+      aria-checked={checked}
+    >
+      <span
+        className="inline-block rounded-full bg-white shadow-sm transition-transform"
+        style={{
+          width: '18px',
+          height: '18px',
+          transform: checked ? 'translateX(23px)' : 'translateX(3px)',
+        }}
+      />
+    </button>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Service Row — compact service entry within a category               */
+/* ------------------------------------------------------------------ */
+
+function ServiceRow({ service, theme, labels, dispatch, isLast }: {
+  service: UCService;
+  theme: BannerTheme;
+  labels: UCLabels;
+  dispatch: React.Dispatch<BannerAction>;
+  isLast: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   return (
-    <div className="py-2">
-      <div className="flex items-center justify-between">
-        <button onClick={() => setExpanded(!expanded)} className="flex-1 pr-4 text-left cursor-pointer">
-          <p className="text-sm font-medium" style={{ color: theme.secondaryTextColor }}>{service.dataProcessor}</p>
-          <p className="text-xs opacity-60 mt-0.5" style={{ color: theme.secondaryTextColor }}>{service.descriptionOfService}</p>
+    <div
+      className="px-4"
+      style={{ borderTop: `1px solid ${theme.borderColor}` }}
+    >
+      <div className="flex items-center justify-between py-3">
+        <button onClick={() => setExpanded(!expanded)} className="flex-1 pr-4 text-left cursor-pointer flex items-center gap-2">
+          {expanded
+            ? <ChevronUp size={14} style={{ color: theme.textColor, opacity: 0.3 }} />
+            : <ChevronDown size={14} style={{ color: theme.textColor, opacity: 0.3 }} />}
+          <div>
+            <p className="font-medium" style={{ color: theme.textColor, fontSize: `${theme.fontSize - 1}px` }}>
+              {service.dataProcessor}
+            </p>
+            <p style={{ color: theme.textColor, opacity: 0.45, fontSize: `${theme.fontSize - 2}px`, marginTop: '1px' }}>
+              {service.nameOfProcessingCompany}
+            </p>
+          </div>
         </button>
-        <ToggleButton service={service} theme={theme} dispatch={dispatch} />
+        <ToggleSwitch
+          checked={service.consent.status}
+          disabled={service.isEssential}
+          theme={theme}
+          onChange={() => dispatch({ type: 'TOGGLE_SERVICE_CONSENT', payload: service.templateId })}
+        />
       </div>
       {expanded && <ServiceDetail service={service} theme={theme} labels={labels} />}
     </div>
   );
 }
 
-function ToggleButton({ service, theme, dispatch }: {
-  service: UCService; theme: BannerTheme; dispatch: React.Dispatch<BannerAction>;
-}) {
-  return (
-    <button
-      onClick={() => dispatch({ type: 'TOGGLE_SERVICE_CONSENT', payload: service.templateId })}
-      disabled={service.isEssential}
-      className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-      style={{ backgroundColor: service.consent.status ? theme.toggleActiveColor : theme.toggleInactiveColor }}
-    >
-      <span
-        className="inline-block h-4 w-4 rounded-full bg-white transition-transform shadow-sm"
-        style={{ transform: service.consent.status ? 'translateX(22px)' : 'translateX(4px)' }}
-      />
-    </button>
-  );
-}
+/* ------------------------------------------------------------------ */
+/* Service Detail — full data processing info (like UC second layer)   */
+/* ------------------------------------------------------------------ */
 
 function ServiceDetail({ service, theme, labels }: {
-  service: UCService; theme: BannerTheme; labels: UCLabels;
+  service: UCService;
+  theme: BannerTheme;
+  labels: UCLabels;
 }) {
   const detailRows: { label: string; value: string | string[] }[] = [
     { label: labels.descriptionOfService, value: service.descriptionOfService },
-    { label: labels.processingCompanyTitle, value: `${service.nameOfProcessingCompany}${service.addressOfProcessingCompany ? ', ' + service.addressOfProcessingCompany : ''}` },
+    {
+      label: labels.processingCompanyTitle,
+      value: `${service.nameOfProcessingCompany}${service.addressOfProcessingCompany ? '\n' + service.addressOfProcessingCompany : ''}`,
+    },
     { label: labels.dataPurposes, value: service.dataPurposesList },
     { label: labels.technologiesUsed, value: service.technologyUsed },
     { label: labels.dataCollectedList, value: service.dataCollectedList },
@@ -243,31 +372,55 @@ function ServiceDetail({ service, theme, labels }: {
   ];
 
   return (
-    <div className="mt-2 pt-2 space-y-1.5" style={{ borderTop: `1px solid ${theme.borderColor}` }}>
-      {detailRows.map(({ label, value }) => {
-        if (!value || (Array.isArray(value) && value.length === 0)) return null;
-        const displayValue = Array.isArray(value) ? value.join(', ') : value;
-        return (
-          <div key={label} className="text-xs">
-            <span className="font-medium opacity-70" style={{ color: theme.secondaryTextColor }}>{label}: </span>
-            <span className="opacity-60" style={{ color: theme.secondaryTextColor }}>{displayValue}</span>
-          </div>
-        );
-      })}
-      <div className="flex flex-wrap gap-3 pt-1">
+    <div className="pb-4 space-y-3">
+      {/* Detail grid — each row is label + value like a definition list */}
+      <div className="space-y-2">
+        {detailRows.map(({ label, value }) => {
+          if (!value || (Array.isArray(value) && value.length === 0)) return null;
+          const displayValue = Array.isArray(value) ? value.join(', ') : value;
+          return (
+            <div key={label} style={{ fontSize: `${theme.fontSize - 2}px` }}>
+              <div className="font-medium mb-0.5" style={{ color: theme.textColor, opacity: 0.55 }}>
+                {label}
+              </div>
+              <div style={{ color: theme.textColor, opacity: 0.8, whiteSpace: 'pre-line' }}>
+                {displayValue}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* External links */}
+      <div className="flex flex-wrap gap-4 pt-1">
         {service.privacyPolicyURL && service.privacyPolicyURL !== '#' && (
-          <a href={service.privacyPolicyURL} className="inline-flex items-center gap-1 text-xs opacity-70" style={{ color: theme.primaryColor }} onClick={(e) => e.preventDefault()}>
-            {labels.policyOf} {service.dataProcessor} <ExternalLink size={10} />
+          <a
+            href={service.privacyPolicyURL}
+            className="inline-flex items-center gap-1 hover:underline"
+            style={{ color: theme.primaryColor, fontSize: `${theme.fontSize - 2}px` }}
+            onClick={(e) => e.preventDefault()}
+          >
+            {labels.policyOf} {service.dataProcessor} <ExternalLink size={11} />
           </a>
         )}
         {service.cookiePolicyURL && service.cookiePolicyURL !== '#' && (
-          <a href={service.cookiePolicyURL} className="inline-flex items-center gap-1 text-xs opacity-70" style={{ color: theme.primaryColor }} onClick={(e) => e.preventDefault()}>
-            {labels.cookiePolicyInfo} <ExternalLink size={10} />
+          <a
+            href={service.cookiePolicyURL}
+            className="inline-flex items-center gap-1 hover:underline"
+            style={{ color: theme.primaryColor, fontSize: `${theme.fontSize - 2}px` }}
+            onClick={(e) => e.preventDefault()}
+          >
+            {labels.cookiePolicyInfo} <ExternalLink size={11} />
           </a>
         )}
         {service.optOutUrl && (
-          <a href={service.optOutUrl} className="inline-flex items-center gap-1 text-xs opacity-70" style={{ color: theme.primaryColor }} onClick={(e) => e.preventDefault()}>
-            {labels.optOut} <ExternalLink size={10} />
+          <a
+            href={service.optOutUrl}
+            className="inline-flex items-center gap-1 hover:underline"
+            style={{ color: theme.primaryColor, fontSize: `${theme.fontSize - 2}px` }}
+            onClick={(e) => e.preventDefault()}
+          >
+            {labels.optOut} <ExternalLink size={11} />
           </a>
         )}
       </div>

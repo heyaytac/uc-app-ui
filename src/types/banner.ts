@@ -191,23 +191,23 @@ export interface ChatMessage {
 
 export const DEFAULT_THEME: BannerTheme = {
   backgroundColor: '#ffffff',
-  textColor: '#1a1a2e',
-  primaryColor: '#1f6ff0',
+  textColor: '#2d3748',
+  primaryColor: '#2b61d6',
   primaryTextColor: '#ffffff',
-  secondaryColor: '#f0f0f5',
-  secondaryTextColor: '#1a1a2e',
-  toggleActiveColor: '#1f6ff0',
+  secondaryColor: '#f7f8fa',
+  secondaryTextColor: '#2d3748',
+  toggleActiveColor: '#2b61d6',
   toggleInactiveColor: '#cbd5e1',
-  borderColor: '#e2e8f0',
+  borderColor: '#e2e6ea',
   overlayColor: '#000000',
-  overlayOpacity: 0.5,
-  fontFamily: 'system-ui, -apple-system, sans-serif',
+  overlayOpacity: 0.4,
+  fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
   fontSize: 14,
 };
 
 export const DEFAULT_LAYOUT: BannerLayout = {
   type: 'wall',
-  showLogo: true,
+  showLogo: false,
   showCloseButton: false,
   showPrivacyButton: true,
   borderRadius: 12,
