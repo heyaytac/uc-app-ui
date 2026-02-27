@@ -3,29 +3,33 @@ import {
   type BannerConfig,
   type BannerTheme,
   type BannerLayout,
-  type BannerContent,
+  type UCSettings,
+  type UCLabels,
   type ChatMessage,
-  type ServiceConfig,
-  type CategoryConfig,
+  type UCService,
+  type UCCategory,
   DEFAULT_BANNER_CONFIG,
 } from '../types/banner';
 
-interface BannerState {
+export interface BannerState {
   config: BannerConfig;
   messages: ChatMessage[];
   activeTab: 'chat' | 'theme' | 'layout' | 'content' | 'services';
   previewMode: 'first-layer' | 'second-layer';
   isGenerating: boolean;
   projectName: string;
+  aiApiKey: string;
+  aiProvider: 'anthropic' | 'openai';
 }
 
-type BannerAction =
+export type BannerAction =
   | { type: 'SET_CONFIG'; payload: BannerConfig }
   | { type: 'SET_THEME'; payload: Partial<BannerTheme> }
   | { type: 'SET_LAYOUT'; payload: Partial<BannerLayout> }
-  | { type: 'SET_CONTENT'; payload: Partial<BannerContent> }
-  | { type: 'SET_SERVICES'; payload: ServiceConfig[] }
-  | { type: 'SET_CATEGORIES'; payload: CategoryConfig[] }
+  | { type: 'SET_SETTINGS'; payload: Partial<UCSettings> }
+  | { type: 'SET_LABELS'; payload: Partial<UCLabels> }
+  | { type: 'SET_SERVICES'; payload: UCService[] }
+  | { type: 'SET_CATEGORIES'; payload: UCCategory[] }
   | { type: 'TOGGLE_SERVICE_CONSENT'; payload: string }
   | { type: 'ADD_MESSAGE'; payload: ChatMessage }
   | { type: 'SET_ACTIVE_TAB'; payload: BannerState['activeTab'] }
@@ -33,6 +37,8 @@ type BannerAction =
   | { type: 'SET_IS_GENERATING'; payload: boolean }
   | { type: 'SET_PROJECT_NAME'; payload: string }
   | { type: 'SET_SETTINGS_ID'; payload: string }
+  | { type: 'SET_AI_API_KEY'; payload: string }
+  | { type: 'SET_AI_PROVIDER'; payload: BannerState['aiProvider'] }
   | { type: 'ACCEPT_ALL' }
   | { type: 'DENY_ALL' };
 
@@ -43,55 +49,40 @@ function bannerReducer(state: BannerState, action: BannerAction): BannerState {
     case 'SET_THEME':
       return {
         ...state,
-        config: {
-          ...state.config,
-          theme: { ...state.config.theme, ...action.payload },
-        },
+        config: { ...state.config, theme: { ...state.config.theme, ...action.payload } },
       };
     case 'SET_LAYOUT':
       return {
         ...state,
-        config: {
-          ...state.config,
-          layout: { ...state.config.layout, ...action.payload },
-        },
+        config: { ...state.config, layout: { ...state.config.layout, ...action.payload } },
       };
-    case 'SET_CONTENT':
+    case 'SET_SETTINGS':
+      return {
+        ...state,
+        config: { ...state.config, settings: { ...state.config.settings, ...action.payload } },
+      };
+    case 'SET_LABELS':
       return {
         ...state,
         config: {
           ...state.config,
-          content: { ...state.config.content, ...action.payload },
+          settings: {
+            ...state.config.settings,
+            labels: { ...state.config.settings.labels, ...action.payload },
+          },
         },
       };
     case 'SET_SERVICES':
-      return {
-        ...state,
-        config: { ...state.config, services: action.payload },
-      };
+      return { ...state, config: { ...state.config, services: action.payload } };
     case 'SET_CATEGORIES':
-      return {
-        ...state,
-        config: { ...state.config, categories: action.payload },
-      };
+      return { ...state, config: { ...state.config, categories: action.payload } };
     case 'TOGGLE_SERVICE_CONSENT': {
       const services = state.config.services.map((s) =>
-        s.id === action.payload && !s.isEssential
-          ? { ...s, consent: !s.consent }
+        s.templateId === action.payload && !s.isEssential
+          ? { ...s, consent: { ...s.consent, status: !s.consent.status } }
           : s
       );
-      const categories = state.config.categories.map((cat) => ({
-        ...cat,
-        services: cat.services.map((s) =>
-          s.id === action.payload && !s.isEssential
-            ? { ...s, consent: !s.consent }
-            : s
-        ),
-      }));
-      return {
-        ...state,
-        config: { ...state.config, services, categories },
-      };
+      return { ...state, config: { ...state.config, services } };
     }
     case 'ADD_MESSAGE':
       return { ...state, messages: [...state.messages, action.payload] };
@@ -104,40 +95,24 @@ function bannerReducer(state: BannerState, action: BannerAction): BannerState {
     case 'SET_PROJECT_NAME':
       return { ...state, projectName: action.payload };
     case 'SET_SETTINGS_ID':
-      return {
-        ...state,
-        config: { ...state.config, settingsId: action.payload },
-      };
+      return { ...state, config: { ...state.config, settingsId: action.payload } };
+    case 'SET_AI_API_KEY':
+      return { ...state, aiApiKey: action.payload };
+    case 'SET_AI_PROVIDER':
+      return { ...state, aiProvider: action.payload };
     case 'ACCEPT_ALL': {
       const services = state.config.services.map((s) => ({
         ...s,
-        consent: true,
+        consent: { ...s.consent, status: true },
       }));
-      const categories = state.config.categories.map((cat) => ({
-        ...cat,
-        services: cat.services.map((s) => ({ ...s, consent: true })),
-      }));
-      return {
-        ...state,
-        config: { ...state.config, services, categories },
-      };
+      return { ...state, config: { ...state.config, services } };
     }
     case 'DENY_ALL': {
       const services = state.config.services.map((s) => ({
         ...s,
-        consent: s.isEssential,
+        consent: { ...s.consent, status: s.isEssential },
       }));
-      const categories = state.config.categories.map((cat) => ({
-        ...cat,
-        services: cat.services.map((s) => ({
-          ...s,
-          consent: s.isEssential,
-        })),
-      }));
-      return {
-        ...state,
-        config: { ...state.config, services, categories },
-      };
+      return { ...state, config: { ...state.config, services } };
     }
     default:
       return state;
@@ -151,6 +126,8 @@ const initialState: BannerState = {
   previewMode: 'first-layer',
   isGenerating: false,
   projectName: 'My CMP Banner',
+  aiApiKey: '',
+  aiProvider: 'anthropic',
 };
 
 interface BannerContextValue {

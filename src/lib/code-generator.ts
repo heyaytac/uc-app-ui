@@ -1,57 +1,63 @@
 import type { BannerConfig } from '@/types/banner';
 
+/**
+ * Generates Vanilla JS code using UsercentricsCore SDK
+ * Uses: getCMPData(), acceptAll(), denyAll(), saveDecisions(), track()
+ */
 export function generateBannerCode(config: BannerConfig): string {
-  const { theme, layout, content, categories } = config;
+  const { theme, layout } = config;
 
-  return `import Usercentrics, { UI_LAYER, UI_VARIANT } from '@usercentrics/cmp-browser-sdk';
+  return `// Custom CMP Banner using UsercentricsCore SDK
+// Ref: https://usercentrics.com/docs/apps/features/build_own_ui/
+//
+// Install: npm install @usercentrics/cmp-browser-sdk
 
-// Initialize Usercentrics SDK
-const UC = new Usercentrics('${config.settingsId || 'YOUR_SETTINGS_ID'}');
+import UsercentricsCore from '@usercentrics/cmp-browser-sdk';
 
-async function initBanner() {
-  const initialUIValues = await UC.init();
-
-  // Get settings and categories from Usercentrics
-  const settings = UC.getSettingsCore();
-  const labels = UC.getSettingsLabels();
-  const categories = UC.getCategories();
-
-  // Determine what to show
-  if (initialUIValues.variant === UI_VARIANT.DEFAULT) {
-    switch (initialUIValues.initialLayer) {
-      case UI_LAYER.FIRST_LAYER:
-        showFirstLayer(categories);
-        break;
-      case UI_LAYER.PRIVACY_BUTTON:
-        showPrivacyButton();
-        break;
-      case UI_LAYER.NONE:
-        // No banner needed
-        break;
-    }
-  }
-}
-
-// Banner Configuration
+// ─── Banner Theme & Layout ───────────────────────────────────────
 const bannerConfig = {
   theme: ${JSON.stringify(theme, null, 4)},
   layout: ${JSON.stringify(layout, null, 4)},
-  content: ${JSON.stringify(content, null, 4)},
 };
 
-// Render the First Layer (main consent banner)
-function showFirstLayer(categories) {
+// ─── Initialize UsercentricsCore ─────────────────────────────────
+UsercentricsCore.configure('${config.settingsId || 'YOUR_SETTINGS_ID'}');
+
+UsercentricsCore.isReady(
+  function onReady() {
+    // getCMPData() returns { settings, services, categories, legalBasis }
+    const data = UsercentricsCore.getCMPData();
+    const settings = data.settings;
+    const services = data.services;
+    const categories = data.categories;
+
+    // Match categories and services: category.slug == service.categorySlug
+    const categoriesWithServices = categories.map(cat => ({
+      ...cat,
+      services: services.filter(s => s.categorySlug === cat.categorySlug),
+    }));
+
+    showFirstLayer(settings, categoriesWithServices, services);
+
+    // Track analytics: CMP_SHOWN
+    UsercentricsCore.track({ event: 'CMP_SHOWN' });
+  },
+  function onFailure(error) {
+    console.error('UsercentricsCore init failed:', error);
+  }
+);
+
+// ─── First Layer ─────────────────────────────────────────────────
+function showFirstLayer(settings, categoriesWithServices, allServices) {
+  const labels = settings.labels;
   const overlay = document.createElement('div');
   overlay.id = 'uc-banner-overlay';
   Object.assign(overlay.style, {
-    position: 'fixed',
-    inset: '0',
-    zIndex: '99999',
+    position: 'fixed', inset: '0', zIndex: '99999',
     display: 'flex',
     alignItems: '${getAlignItems(layout.type)}',
     justifyContent: '${getJustifyContent(layout.type)}',
     padding: '24px',
-    backgroundColor: \`\${bannerConfig.theme.overlayColor}\${Math.round(bannerConfig.theme.overlayOpacity * 255).toString(16).padStart(2, '0')}\`,
   });
 
   const banner = document.createElement('div');
@@ -62,237 +68,187 @@ function showFirstLayer(categories) {
     fontFamily: bannerConfig.theme.fontFamily,
     fontSize: bannerConfig.theme.fontSize + 'px',
     borderRadius: bannerConfig.layout.borderRadius + 'px',
-    maxWidth: ${layout.type.startsWith('bar') ? "'100%'" : `bannerConfig.layout.maxWidth + 'px'`},
+    maxWidth: '${layout.type.startsWith('bar') ? '100%' : layout.maxWidth + 'px'}',
     width: '100%',
-    border: \`1px solid \${bannerConfig.theme.borderColor}\`,
-    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+    border: '1px solid ' + bannerConfig.theme.borderColor,
+    boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
     overflow: 'hidden',
   });
 
   banner.innerHTML = \`
     <div style="padding: 24px 24px 12px;">
-      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-        ${layout.showLogo ? `<div style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 8px; background: \${bannerConfig.theme.primaryColor};">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="\${bannerConfig.theme.primaryTextColor}" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        </div>` : ''}
-        <h2 style="font-size: 1.125rem; font-weight: 600; color: \${bannerConfig.theme.textColor};">
-          \${bannerConfig.content.title}
-        </h2>
-      </div>
-      <p style="font-size: 0.875rem; line-height: 1.6; opacity: 0.8; color: \${bannerConfig.theme.textColor};">
-        \${bannerConfig.content.description}
+      <h2 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 8px;">
+        \${labels.firstLayerTitle}
+      </h2>
+      <p style="font-size: 0.875rem; line-height: 1.6; opacity: 0.8;">
+        \${settings.firstLayerDescription}
       </p>
     </div>
-
-    <div style="padding: 12px 24px;">
-      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-        ${categories.map((cat) => `
-        <span style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; background: \${bannerConfig.theme.secondaryColor}; color: \${bannerConfig.theme.secondaryTextColor};">
-          <span style="width: 6px; height: 6px; border-radius: 50%; background: ${cat.slug === 'essential' ? '${bannerConfig.theme.toggleActiveColor}' : '${bannerConfig.theme.toggleInactiveColor}'};"></span>
-          ${cat.label} <span style="opacity: 0.5;">(${cat.services.length})</span>
-        </span>`).join('')}
-      </div>
-    </div>
-
     <div style="padding: 12px 24px 24px; display: flex; flex-direction: column; gap: 8px;">
-      <button id="uc-accept-all" style="width: 100%; padding: 10px 16px; border-radius: 8px; font-size: 0.875rem; font-weight: 600; border: none; cursor: pointer; background: \${bannerConfig.theme.primaryColor}; color: \${bannerConfig.theme.primaryTextColor};">
-        \${bannerConfig.content.acceptAllLabel}
+      <button id="uc-accept-all" style="width: 100%; padding: 10px 16px; border-radius: 8px;
+        font-weight: 600; border: none; cursor: pointer;
+        background: \${bannerConfig.theme.primaryColor};
+        color: \${bannerConfig.theme.primaryTextColor};">
+        \${labels.btnAcceptAll}
       </button>
       <div style="display: flex; gap: 8px;">
-        <button id="uc-deny-all" style="flex: 1; padding: 10px 16px; border-radius: 8px; font-size: 0.875rem; font-weight: 500; border: none; cursor: pointer; background: \${bannerConfig.theme.secondaryColor}; color: \${bannerConfig.theme.secondaryTextColor};">
-          \${bannerConfig.content.denyAllLabel}
+        <button id="uc-deny-all" style="flex: 1; padding: 10px 16px; border-radius: 8px;
+          border: none; cursor: pointer;
+          background: \${bannerConfig.theme.secondaryColor};
+          color: \${bannerConfig.theme.secondaryTextColor};">
+          \${labels.btnDeny}
         </button>
-        <button id="uc-more-info" style="flex: 1; padding: 10px 16px; border-radius: 8px; font-size: 0.875rem; font-weight: 500; border: 1px solid \${bannerConfig.theme.primaryColor}; cursor: pointer; background: transparent; color: \${bannerConfig.theme.primaryColor};">
-          \${bannerConfig.content.moreInfoLabel}
+        <button id="uc-more-info" style="flex: 1; padding: 10px 16px; border-radius: 8px;
+          cursor: pointer; background: transparent;
+          color: \${bannerConfig.theme.primaryColor};
+          border: 1px solid \${bannerConfig.theme.primaryColor};">
+          \${labels.btnMore}
         </button>
       </div>
-    </div>
-
-    <div style="padding: 12px 24px; border-top: 1px solid \${bannerConfig.theme.borderColor}; display: flex; align-items: center; justify-content: center; gap: 16px; font-size: 0.75rem;">
-      <a href="\${bannerConfig.content.privacyPolicyUrl}" style="opacity: 0.6; color: \${bannerConfig.theme.textColor}; text-decoration: none;">
-        \${bannerConfig.content.privacyPolicyLabel}
-      </a>
-      <span style="opacity: 0.3;">|</span>
-      <a href="\${bannerConfig.content.imprintUrl}" style="opacity: 0.6; color: \${bannerConfig.theme.textColor}; text-decoration: none;">
-        \${bannerConfig.content.imprintLabel}
-      </a>
-      <span style="opacity: 0.3;">|</span>
-      <span style="opacity: 0.4;">Powered by Usercentrics</span>
     </div>
   \`;
 
   overlay.appendChild(banner);
   document.body.appendChild(overlay);
 
-  // Wire up event handlers
-  document.getElementById('uc-accept-all').addEventListener('click', async () => {
-    const categories = UC.acceptAllServices();
+  // ─── Action Delegates ──────────────────────────────────────
+  // acceptAll(consentType) -> returns consents array
+  document.getElementById('uc-accept-all').addEventListener('click', () => {
+    const consents = UsercentricsCore.acceptAll('EXPLICIT');
+    UsercentricsCore.track({ event: 'ACCEPT_ALL_FIRST_LAYER' });
+    applyConsents(consents);
     removeBanner();
   });
 
-  document.getElementById('uc-deny-all').addEventListener('click', async () => {
-    const categories = UC.denyAllServices();
+  // denyAll(consentType) -> returns consents array
+  document.getElementById('uc-deny-all').addEventListener('click', () => {
+    const consents = UsercentricsCore.denyAll('EXPLICIT');
+    UsercentricsCore.track({ event: 'DENY_ALL_FIRST_LAYER' });
+    applyConsents(consents);
     removeBanner();
   });
 
   document.getElementById('uc-more-info').addEventListener('click', () => {
+    UsercentricsCore.track({ event: 'MORE_INFORMATION_LINK' });
     removeBanner();
-    showSecondLayer();
+    // Show second layer with per-service toggles
+    // Use saveDecisions(decisions, 'EXPLICIT') to save granular choices
   });
 }
 
-function showSecondLayer() {
-  const categories = UC.getCategories();
-  // Implement second layer UI with per-service toggles
-  // Use UC.updateServices(userDecisions) to save individual choices
-  console.log('Show second layer with categories:', categories);
-}
-
-function showPrivacyButton() {
-  const btn = document.createElement('button');
-  btn.id = 'uc-privacy-button';
-  Object.assign(btn.style, {
-    position: 'fixed',
-    bottom: '24px',
-    left: '24px',
-    zIndex: '99998',
-    padding: '8px 16px',
-    borderRadius: '8px',
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: '0.75rem',
-    backgroundColor: bannerConfig.theme.primaryColor,
-    color: bannerConfig.theme.primaryTextColor,
-    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+// ─── Apply Consent ───────────────────────────────────────────────
+function applyConsents(consents) {
+  consents.forEach(consent => {
+    console.log('Service ' + consent.templateId + ': consent=' + consent.status);
+    // Apply consent to your 3rd party SDKs here
   });
-  btn.textContent = 'Privacy Settings';
-  btn.addEventListener('click', () => {
-    btn.remove();
-    const categories = UC.getCategories();
-    showFirstLayer(categories);
-  });
-  document.body.appendChild(btn);
 }
 
 function removeBanner() {
   document.getElementById('uc-banner-overlay')?.remove();
 }
-
-// Initialize on page load
-initBanner();
 `;
 }
 
-function getAlignItems(type: string): string {
-  switch (type) {
-    case 'bar-bottom':
-    case 'popup-bottom-left':
-    case 'popup-bottom-right':
-      return 'flex-end';
-    case 'bar-top':
-      return 'flex-start';
-    default:
-      return 'center';
-  }
-}
-
-function getJustifyContent(type: string): string {
-  switch (type) {
-    case 'popup-bottom-left':
-      return 'flex-start';
-    case 'popup-bottom-right':
-      return 'flex-end';
-    default:
-      return 'center';
-  }
-}
-
+/**
+ * Generates React component using UsercentricsCore SDK
+ */
 export function generateReactCode(config: BannerConfig): string {
-  const { theme, layout, content } = config;
+  const { theme, layout } = config;
 
-  return `import { useState, useEffect } from 'react';
-import Usercentrics, { UI_LAYER, UI_VARIANT } from '@usercentrics/cmp-browser-sdk';
+  return `import { useState, useEffect, useCallback } from 'react';
+import UsercentricsCore from '@usercentrics/cmp-browser-sdk';
 
-// Initialize SDK
-const UC = new Usercentrics('${config.settingsId || 'YOUR_SETTINGS_ID'}');
-
-interface ServiceConsent {
-  id: string;
-  name: string;
-  consent: boolean;
+// ─── Types (from UsercentricsCore.getCMPData()) ──────────────────
+interface UCService {
+  templateId: string;
+  dataProcessor: string;
+  descriptionOfService: string;
+  categorySlug: string;
   isEssential: boolean;
-  description: string;
-  category: string;
+  consent: { status: boolean };
 }
 
-interface Category {
-  id: string;
+interface UCCategory {
+  categorySlug: string;
   label: string;
-  slug: string;
-  services: ServiceConsent[];
 }
+
+// ─── Configure SDK ───────────────────────────────────────────────
+UsercentricsCore.configure('${config.settingsId || 'YOUR_SETTINGS_ID'}');
 
 export function ConsentBanner() {
   const [visible, setVisible] = useState(false);
   const [layer, setLayer] = useState<'first' | 'second'>('first');
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [services, setServices] = useState<UCService[]>([]);
+  const [categories, setCategories] = useState<UCCategory[]>([]);
+  const [settings, setSettings] = useState<any>(null);
 
   useEffect(() => {
-    UC.init().then((initialUIValues) => {
-      if (initialUIValues.variant === UI_VARIANT.DEFAULT) {
-        if (initialUIValues.initialLayer === UI_LAYER.FIRST_LAYER) {
-          const cats = UC.getCategories();
-          // Map UC categories to our format
-          setCategories(cats);
-          setVisible(true);
-        }
-      }
-    });
+    UsercentricsCore.isReady(
+      () => {
+        const data = UsercentricsCore.getCMPData();
+        setSettings(data.settings);
+        setServices(data.services);
+        setCategories(data.categories);
+        setVisible(true);
+        UsercentricsCore.track({ event: 'CMP_SHOWN' });
+      },
+      (err) => console.error('UC init failed:', err)
+    );
   }, []);
 
-  const handleAcceptAll = () => {
-    UC.acceptAllServices();
+  const handleAcceptAll = useCallback((fromLayer: 'first' | 'second') => {
+    const consents = UsercentricsCore.acceptAll('EXPLICIT');
+    UsercentricsCore.track({
+      event: fromLayer === 'first' ? 'ACCEPT_ALL_FIRST_LAYER' : 'ACCEPT_ALL_SECOND_LAYER',
+    });
+    applyConsents(consents);
     setVisible(false);
-  };
+  }, []);
 
-  const handleDenyAll = () => {
-    UC.denyAllServices();
+  const handleDenyAll = useCallback((fromLayer: 'first' | 'second') => {
+    const consents = UsercentricsCore.denyAll('EXPLICIT');
+    UsercentricsCore.track({
+      event: fromLayer === 'first' ? 'DENY_ALL_FIRST_LAYER' : 'DENY_ALL_SECOND_LAYER',
+    });
+    applyConsents(consents);
     setVisible(false);
-  };
+  }, []);
 
-  const handleSave = () => {
-    const decisions = categories
-      .flatMap(c => c.services)
-      .map(s => ({ serviceId: s.id, status: s.consent }));
-    UC.updateServices(decisions);
+  const handleSave = useCallback(() => {
+    const decisions = services.map(s => ({
+      serviceId: s.templateId,
+      consent: s.consent.status,
+    }));
+    const consents = UsercentricsCore.saveDecisions(decisions, 'EXPLICIT');
+    UsercentricsCore.track({ event: 'SAVE_SECOND_LAYER' });
+    applyConsents(consents);
     setVisible(false);
-  };
+  }, [services]);
 
-  const toggleService = (serviceId: string) => {
-    setCategories(prev =>
-      prev.map(cat => ({
-        ...cat,
-        services: cat.services.map(s =>
-          s.id === serviceId && !s.isEssential
-            ? { ...s, consent: !s.consent }
-            : s
-        ),
-      }))
+  const toggleService = (templateId: string) => {
+    setServices(prev =>
+      prev.map(s =>
+        s.templateId === templateId && !s.isEssential
+          ? { ...s, consent: { ...s.consent, status: !s.consent.status } }
+          : s
+      )
     );
   };
 
-  if (!visible) return null;
+  if (!visible || !settings) return null;
+
+  const { labels } = settings;
+  const getServicesForCat = (cat: UCCategory) =>
+    services.filter(s => s.categorySlug === cat.categorySlug);
 
   return (
     <div style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 99999,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
+      position: 'fixed', inset: 0, zIndex: 99999,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 24,
-      backgroundColor: '${theme.overlayColor}${Math.round(theme.overlayOpacity * 255).toString(16).padStart(2, '0')}',
+      backgroundColor: '${theme.overlayColor}80',
     }}>
       <div style={{
         backgroundColor: '${theme.backgroundColor}',
@@ -310,45 +266,31 @@ export function ConsentBanner() {
           <>
             <div style={{ padding: '24px 24px 12px' }}>
               <h2 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: 12 }}>
-                ${content.title}
+                {labels.firstLayerTitle}
               </h2>
               <p style={{ fontSize: '0.875rem', lineHeight: 1.6, opacity: 0.8 }}>
-                ${content.description}
+                {settings.firstLayerDescription}
               </p>
             </div>
             <div style={{ padding: '12px 24px 24px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button
-                onClick={handleAcceptAll}
-                style={{
-                  width: '100%', padding: '10px 16px', borderRadius: 8,
-                  fontSize: '0.875rem', fontWeight: 600, border: 'none', cursor: 'pointer',
-                  background: '${theme.primaryColor}', color: '${theme.primaryTextColor}',
-                }}
-              >
-                ${content.acceptAllLabel}
-              </button>
+              <button onClick={() => handleAcceptAll('first')} style={{
+                width: '100%', padding: '10px 16px', borderRadius: 8,
+                fontWeight: 600, border: 'none', cursor: 'pointer',
+                background: '${theme.primaryColor}', color: '${theme.primaryTextColor}',
+              }}>{labels.btnAcceptAll}</button>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={handleDenyAll}
-                  style={{
-                    flex: 1, padding: '10px 16px', borderRadius: 8,
-                    fontSize: '0.875rem', fontWeight: 500, border: 'none', cursor: 'pointer',
-                    background: '${theme.secondaryColor}', color: '${theme.secondaryTextColor}',
-                  }}
-                >
-                  ${content.denyAllLabel}
-                </button>
-                <button
-                  onClick={() => setLayer('second')}
-                  style={{
-                    flex: 1, padding: '10px 16px', borderRadius: 8,
-                    fontSize: '0.875rem', fontWeight: 500, cursor: 'pointer',
-                    background: 'transparent', color: '${theme.primaryColor}',
-                    border: '1px solid ${theme.primaryColor}',
-                  }}
-                >
-                  ${content.moreInfoLabel}
-                </button>
+                <button onClick={() => handleDenyAll('first')} style={{
+                  flex: 1, padding: '10px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                  background: '${theme.secondaryColor}', color: '${theme.secondaryTextColor}',
+                }}>{labels.btnDeny}</button>
+                <button onClick={() => {
+                  setLayer('second');
+                  UsercentricsCore.track({ event: 'MORE_INFORMATION_LINK' });
+                }} style={{
+                  flex: 1, padding: '10px 16px', borderRadius: 8, cursor: 'pointer',
+                  background: 'transparent', color: '${theme.primaryColor}',
+                  border: '1px solid ${theme.primaryColor}',
+                }}>{labels.btnMore}</button>
               </div>
             </div>
           </>
@@ -356,22 +298,19 @@ export function ConsentBanner() {
           <>
             <div style={{ padding: '24px 24px 12px' }}>
               <button onClick={() => setLayer('first')}>Back</button>
-              <h2 style={{ fontSize: '1.125rem', fontWeight: 600 }}>
-                ${content.moreInfoLabel}
+              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, marginTop: 8 }}>
+                {labels.secondLayerTitle}
               </h2>
             </div>
             <div style={{ padding: '0 24px', maxHeight: 320, overflowY: 'auto' }}>
               {categories.map(cat => (
-                <div key={cat.id} style={{ marginBottom: 12, border: '1px solid ${theme.borderColor}', borderRadius: 8 }}>
+                <div key={cat.categorySlug} style={{ marginBottom: 12, border: '1px solid ${theme.borderColor}', borderRadius: 8 }}>
                   <div style={{ padding: 12, fontWeight: 500 }}>{cat.label}</div>
-                  {cat.services.map(service => (
-                    <div key={service.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px' }}>
-                      <span>{service.name}</span>
-                      <button
-                        onClick={() => toggleService(service.id)}
-                        disabled={service.isEssential}
-                      >
-                        {service.consent ? 'On' : 'Off'}
+                  {getServicesForCat(cat).map(svc => (
+                    <div key={svc.templateId} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px' }}>
+                      <span>{svc.dataProcessor}</span>
+                      <button onClick={() => toggleService(svc.templateId)} disabled={svc.isEssential}>
+                        {svc.consent.status ? 'On' : 'Off'}
                       </button>
                     </div>
                   ))}
@@ -379,11 +318,11 @@ export function ConsentBanner() {
               ))}
             </div>
             <div style={{ padding: '12px 24px 24px', display: 'flex', gap: 8 }}>
-              <button onClick={handleAcceptAll} style={{ flex: 1, padding: '10px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '${theme.primaryColor}', color: '${theme.primaryTextColor}' }}>
-                ${content.acceptAllLabel}
+              <button onClick={() => handleAcceptAll('second')} style={{ flex: 1, padding: '10px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '${theme.primaryColor}', color: '${theme.primaryTextColor}' }}>
+                {settings.secondLayer.acceptButtonText}
               </button>
-              <button onClick={handleSave} style={{ flex: 1, padding: '10px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '${theme.secondaryColor}', color: '${theme.secondaryTextColor}' }}>
-                ${content.saveLabel}
+              <button onClick={handleSave} style={{ flex: 1, padding: '10px 16px', borderRadius: 8, cursor: 'pointer', background: 'transparent', color: '${theme.primaryColor}', border: '1px solid ${theme.primaryColor}' }}>
+                {labels.btnSave}
               </button>
             </div>
           </>
@@ -392,5 +331,27 @@ export function ConsentBanner() {
     </div>
   );
 }
+
+function applyConsents(consents: Array<{ templateId: string; status: boolean }>) {
+  consents.forEach(c => {
+    console.log('Service ' + c.templateId + ': consent=' + c.status);
+  });
+}
 `;
+}
+
+function getAlignItems(type: string): string {
+  switch (type) {
+    case 'bar-bottom': case 'popup-bottom-left': case 'popup-bottom-right': return 'flex-end';
+    case 'bar-top': return 'flex-start';
+    default: return 'center';
+  }
+}
+
+function getJustifyContent(type: string): string {
+  switch (type) {
+    case 'popup-bottom-left': return 'flex-start';
+    case 'popup-bottom-right': return 'flex-end';
+    default: return 'center';
+  }
 }
