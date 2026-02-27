@@ -192,11 +192,11 @@ export interface ChatMessage {
 export const DEFAULT_THEME: BannerTheme = {
   backgroundColor: '#ffffff',
   textColor: '#2d3748',
-  primaryColor: '#2b61d6',
+  primaryColor: '#0045a5',
   primaryTextColor: '#ffffff',
   secondaryColor: '#f7f8fa',
   secondaryTextColor: '#2d3748',
-  toggleActiveColor: '#2b61d6',
+  toggleActiveColor: '#0045a5',
   toggleInactiveColor: '#cbd5e1',
   borderColor: '#e2e6ea',
   overlayColor: '#000000',
